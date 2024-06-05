@@ -1,0 +1,19 @@
+{
+  "name": "eafctesuryobot",
+  "version": "0.1.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.1.2",
+    "node-cron": "^3.0.1"
+  },
+  "engines": {
+    "node": "16.x"
+  },
+  "repository": {
+    "url": "https://github.com/Teruya-Inoue/TesuryoBot"
+  }
+}
