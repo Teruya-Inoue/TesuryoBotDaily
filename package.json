@@ -8,7 +8,9 @@
   },
   "dependencies": {
     "discord.js": "^14.1.2",
-    "node-cron": "^3.0.1"
+    "node-cron": "^3.0.1",
+    "@discordjs/collection": "1.5.3",
+    "undici": "4.7.0"
   },
   "engines": {
     "node": "16.x"
