@@ -5,12 +5,7 @@ const {
   EmbedBuilder,
   Events,
   Partials,
-  Collection,
 } = require("discord.js");
-const fs = require("fs");
-const path = require("path");
-const { spawn } = require("child_process");
-const { EAFCApiService } = require("eafc-clubs-api");
 
 const http = require("http");
 const cron = require("node-cron");
@@ -61,57 +56,9 @@ const client = new Client({
   partials: [Partials.Message, Partials.Channel, Partials.Reaction],
 });
 
-client.commands = new Collection();
-
-for (let pathname of ["commands/utils", "commands/admin"]) {
-  const commandsPath = path.join(__dirname, pathname);
-  const commandFiles = fs
-    .readdirSync(commandsPath)
-    .filter((file) => file.endsWith(".js"));
-
-  for (const file of commandFiles) {
-    const filePath = path.join(commandsPath, file);
-    const command = require(filePath);
-    // Set a new item in the Collection with the key as the command name and the value as the exported module
-    if ("data" in command && "execute" in command) {
-      client.commands.set(command.data.name, command);
-    } else {
-      console.log(
-        `[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.`
-      );
-    }
-  }
-}
-
 // When the client is ready, run this code (only once)
 client.once("ready", async () => {
   console.log("Botの準備が完了しました");
-});
-
-client.on(Events.InteractionCreate, async (interaction) => {
-  if (!interaction.isChatInputCommand()) return;
-  const command = interaction.client.commands.get(interaction.commandName);
-  if (!command) {
-    console.error(`No command matching ${interaction.commandName} was found.`);
-    return;
-  }
-
-  try {
-    await command.execute(interaction);
-  } catch (error) {
-    console.error(error);
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp({
-        content: "There was an error while executing this command!",
-        ephemeral: true,
-      });
-    } else {
-      await interaction.reply({
-        content: "There was an error while executing this command!",
-        ephemeral: true,
-      });
-    }
-  }
 });
 
 //メッセージを受け取ったときの挙動
@@ -127,29 +74,6 @@ client.on(Events.MessageCreate, async (message) => {
     message.react("❌");
     if (await isMatchDay()) message.react("🚫");
     return;
-  }
-
-  if (message.content.includes("?tesuryobot matchday")) {
-    let Operation = message.content.split(" ");
-    let day = Operation[2];
-    let dsp = Operation[3];
-    if (day.length != 1) {
-      return;
-    }
-
-    let MsgCollection = await client.channels.cache
-      .get(myChannels.WeekVoteCh)
-      .messages.fetch({ limit: 6 });
-    for (const m of MsgCollection.values()) {
-      if (m.embeds[0].title == day) {
-        const exampleEmbed = new EmbedBuilder()
-          .setTitle(day)
-          .setDescription(dsp)
-          .setColor(m.embeds[0].color);
-        m.edit({ embeds: [exampleEmbed] });
-        await m.react("🚫");
-      }
-    }
   }
 });
 
