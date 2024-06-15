@@ -162,10 +162,11 @@ cron.schedule(config.VoteTime, async () => {
       .setDescription(description)
       .setColor(0xff4500);
   }
-  if (!isOff())
+  if (!isOff()) {
     client.channels.cache
       .get(myChannels.ProClubVoteCh)
       .send({ embeds: [embed] });
+  }
 });
 
 //cron:プロクラブ出欠追跡メッセージ送信
