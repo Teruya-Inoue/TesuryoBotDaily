@@ -699,6 +699,15 @@ function GetTrackerText(userIdEachReactionList) {
     }
   }
 
+  client.user.setPresence({
+    activities: [
+      {
+        name: `⭕${maru.length}❓${userIdNotAnsweredList.length}❌${batu.length}出欠`,
+        type: 3,
+      },
+    ],
+    status: "online",
+  });
   text += `:[${Hour}:${Min}:${Sec}時点の人数]\n**フィールド${fieldNum}人・GK${GkNum}人\n未回答${userIdNotAnsweredList.length}人**`;
   text += "```" + text1 + "```";
   text += "```" + text2 + "```";
