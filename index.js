@@ -99,7 +99,6 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
 
   //手数料botへの固定・サポメン以外のリアクションは消す
   if (!MemberIdList.includes(user.id) && !SMemberIdList.includes(user.id)) {
-    console.log("Not member");
     reaction.users.remove(user.id);
   }
 
@@ -145,34 +144,41 @@ cron.schedule(config.VoteTime, async () => {
   //今日がオフじゃないなら出欠確認を出す
   let embed;
   let matchday = await isMatchDay();
-  if (matchday) {
-    let title = "公式戦出欠";
-    let description = matchday;
+  let booleanVote = await BooleanVoteMessageExist();
 
-    embed = new EmbedBuilder()
-      .setTitle(title)
-      .setDescription(description)
-      .setColor(0xff4500);
-  } else {
-    let title = "練習出欠";
-    let description =
-      "⭕ : 出席\n❌ : 欠席\n事前に出欠がわかる日は<#1138445755619758150>へ\n報連相は<#1004308042009038848>へ";
-    embed = new EmbedBuilder()
-      .setTitle(title)
-      .setDescription(description)
-      .setColor(0xff4500);
-  }
-  if (!isOff()) {
-    client.channels.cache
-      .get(myChannels.ProClubVoteCh)
-      .send({ embeds: [embed] });
+  if (!booleanVote) {
+    if (matchday) {
+      let title = "公式戦出欠";
+      let description = matchday;
+
+      embed = new EmbedBuilder()
+        .setTitle(title)
+        .setDescription(description)
+        .setColor(0xff4500);
+    } else {
+      let title = "練習出欠";
+      let description =
+        "⭕ : 出席\n❌ : 欠席\n締め切り原則20時\n事前に出欠がわかる日は<#1138445755619758150>へ\n報連相は<#1004308042009038848>へ";
+      embed = new EmbedBuilder()
+        .setTitle(title)
+        .setDescription(description)
+        .setColor(0xff4500);
+    }
+    if (!isOff()) {
+      client.channels.cache
+        .get(myChannels.ProClubVoteCh)
+        .send({ embeds: [embed] });
+    }
   }
 });
 
 //cron:プロクラブ出欠追跡メッセージ送信
 cron.schedule(config.TrackerTime, async () => {
   //今日がオフじゃないなら
-  if (!isOff()) {
+  let booleanVote = await BooleanVoteMessageExist();
+  let booleanTracker = await BooleanTrackerMessageExist();
+
+  if (booleanVote && !booleanTracker && !isOff()) {
     SendTrackerText(myChannels.ProClubVoteCh, myChannels.ProClubVoteCh);
     console.log("sent TrackerMessage");
   }
@@ -294,7 +300,7 @@ cron.schedule(config.JudgeTime, async () => {
     let batu = userIdEachReactionList[1]; //❌
 
     //答えた人、答えてない人
-    let Ans = [...userIdEachReactionList[0], ...userIdEachReactionList[1]];
+    let Ans = [...maru, ...batu];
     let notAns = MemberIdList.filter((id) => !Ans.includes(id));
 
     //判定用
@@ -331,7 +337,7 @@ cron.schedule(config.JudgeTime, async () => {
       let text2 = "";
       for (let id of notAns) text2 += `<@${id}> `;
       text2 =
-        "@未回答の人たち\n20:30まで待ちます\nそれ以降はゲス募出すので早い方優先です。";
+        "@未回答の人たち\n20:30まで待ちます\nそれ以降はゲス募出すので早い方優先します。";
       client.channels.cache.get(myChannels.ProClubVoteCh).send(text2);
 
       //8人いない
@@ -455,6 +461,42 @@ async function BooleanJudgeMessageExist(messageNum) {
     if (
       m.author.id == botID &&
       m.content.match("全員回答完了") &&
+      m.createdAt.getDay() == nowday
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+async function BooleanVoteMessageExist(messageNum = 3) {
+  let nowday = new Date().getDay();
+  let MsgCollection = await GetTargetMessage(
+    myChannels.ProClubVoteCh,
+    messageNum
+  );
+  for (const m of MsgCollection.values()) {
+    if (
+      m.author.id == botID &&
+      m.content == "" &&
+      m.createdAt.getDay() == nowday
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+async function BooleanTrackerMessageExist(messageNum = 3) {
+  let nowday = new Date().getDay();
+  let MsgCollection = await GetTargetMessage(
+    myChannels.ProClubVoteCh,
+    messageNum
+  );
+  for (const m of MsgCollection.values()) {
+    if (
+      m.author.id == botID &&
+      m.content.match("Tracker") &&
       m.createdAt.getDay() == nowday
     ) {
       return true;
