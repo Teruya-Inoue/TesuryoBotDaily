@@ -181,12 +181,11 @@ cron.schedule(config.VoteTime, async () => {
 //cron:プロクラブ出欠追跡メッセージ送信
 cron.schedule(config.TrackerTime, async () => {
   //今日がオフじゃないなら
-  let booleanVote = await BooleanVoteMessageExist();
-  let booleanTracker = await BooleanTrackerMessageExist();
+  const booleanVote = await BooleanVoteMessageExist();
+  const booleanTracker = await BooleanTrackerMessageExist();
 
   if (booleanVote && !booleanTracker && !isOff()) {
-    SendTrackerText(myChannels.ProClubVoteCh, myChannels.ProClubVoteCh);
-    console.log("sent TrackerMessage");
+    client.channels.cache.get(myChannels.ProClubVoteCh).send("Tracker");
   }
 });
 
@@ -347,100 +346,10 @@ cron.schedule(config.UpdateTime, async () => {
 //cron:回答リマインダー
 cron.schedule(config.reminderTime, async () => {
   //オフじゃないなら
-  let booleanMatchDay = await isMatchDay();
+  const booleanMatchDay = await isMatchDay();
   if (!isOff() && !booleanMatchDay) {
-    let flag = await BooleanJudgeMessageExist(5);
-    if (!flag) {
-      let arr = await GetAllTodayVoteReaction();
-      let all = [];
-      for (const erl of arr) {
-        all = all.concat(erl);
-      }
-      let set = new Set(all);
-      let ans = Array.from(set);
-      let notAns = MemberIdList.filter((id) => !ans.includes(id));
-
-      if (notAns.length > 0) {
-        /*
-        let text = "まだの人回答宜しくお願いします！\n";
-        for (let id of notAns) text += `<@${id}> `;
-        client.channels.cache.get(myChannels.ProClubVoteCh).send(text);
-        */
-        let text = `<@&${roleNotAns}> 回答よろしくお願いします`;
-        client.channels.cache.get(myChannels.ProClubVoteCh).send(text);
-      }
-    }
-  }
-});
-
-//cron:20時に全員回答していないときの挙動
-cron.schedule(config.JudgeTime, async () => {
-  let booleanMatchDay = await isMatchDay();
-  let flag = await BooleanJudgeMessageExist(5);
-  //リーグ期間中で今日が土曜日 じゃないなら
-  //オフじゃないなら
-  if (!isOff() && !booleanMatchDay && !flag) {
-    //リアクションした人取得
-    let userIdEachReactionList = await GetAllTodayVoteReaction();
-
-    //各リアクションのメンバー
-    let maru = userIdEachReactionList[0]; //⭕
-    let batu = userIdEachReactionList[1]; //❌
-
-    //答えた人、答えてない人
-    let Ans = [...maru, ...batu];
-    let notAns = MemberIdList.filter((id) => !Ans.includes(id));
-
-    //判定用
-    let keeperNum; //キーパーの数
-    let fieldNum = maru.length; //フィールドの数
-    let judgeNum; //活動かfinか判定用の変数
-
-    //キーパーが⭕のとき
-    if (maru.includes(keeperId)) {
-      keeperNum = 1;
-      fieldNum -= 1;
-      judgeNum = fieldNum + notAns.length;
-      //キーパーが❌のとき
-    } else if (batu.includes(keeperId)) {
-      keeperNum = 0;
-      judgeNum = fieldNum + notAns.length;
-      //キーパーが未回答のとき
-    } else if (notAns.includes(keeperId)) {
-      keeperNum = -1;
-      judgeNum = fieldNum + notAns.length - 1;
-    }
-
-    //ゲスト管理者
-    let text = "";
-
-    //8人以上いる
-    if (fieldNum >= config.minPlayer) {
-      for (let id of maru) text += `<@${id}> `;
-      //text += "@⭕の人たち";
-      text += `<@&${roleMaru}> `;
-      text += `全員回答完了していませんが、フィールド${fieldNum}人集まってるので活動ありです！\n`;
-      text += "**22:30から活動!**\n";
-      client.channels.cache.get(myChannels.ProClubVoteCh).send(text);
-
-      let text2 = "";
-      for (let id of notAns) text2 += `<@${id}> `;
-      text2 += `<@&${roleNotAns}>`;
-      text2 +=
-        "\n20:30まで待ちます\nそれ以降はゲス募出すので早い方優先します。";
-      client.channels.cache.get(myChannels.ProClubVoteCh).send(text2);
-
-      //8人いない
-    } else {
-      text += `全員回答完了していませんが、`;
-      //for (let id of notAns) text += `<@${id}> `;
-      text += `<@&${roleNotAns}>`;
-      text += `の中から${
-        config.minPlayer - fieldNum
-      }人⭕なら活動アリです！\n回答したら何か連絡ください。\n`;
-      text += "活動ありなら**22:30から活動予定**\n";
-      client.channels.cache.get(myChannels.ProClubVoteCh).send(text);
-    }
+    let text = `<@&${roleNotAns}> 回答よろしくお願いします`;
+    client.channels.cache.get(myChannels.ProClubVoteCh).send(text);
   }
 });
 
@@ -539,6 +448,24 @@ async function isMatchDay(targetDay = new Date().getDay()) {
 // 指定のユーザー、内容、チャンネルから最新n個メッセージをとってくる
 async function GetTargetMessage(channel, n) {
   return await client.channels.cache.get(channel).messages.fetch({ limit: n });
+}
+
+async function BooleanMessageExist(content, messageNum = 5) {
+  let nowday = new Date().getDay();
+  let MsgCollection = await GetTargetMessage(
+    myChannels.ProClubVoteCh,
+    messageNum
+  );
+  for (const m of MsgCollection.values()) {
+    if (
+      m.author.id == botID &&
+      m.content.match(content) &&
+      m.createdAt.getDay() == nowday
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 //ジャッジメッセージがあるか
@@ -721,157 +648,6 @@ async function GetWeekVoteReaction(
     }
   }
   return Promise.all(weekVoteArray);
-}
-
-// トラッカーのテキスト取得
-function GetTrackerText(userIdEachReactionList) {
-  //時間
-  let now = new Date();
-  let Hour = now.getHours();
-  let Min = now.getMinutes();
-  let Sec = now.getSeconds();
-  let text = "Tracker";
-
-  //答えた人
-  let all = [];
-  for (const erl of userIdEachReactionList) {
-    all = all.concat(erl);
-  }
-  let set = new Set(all);
-  let userIdAlreadyAnsweredList = Array.from(set);
-
-  //答えてない人
-  let userIdNotAnsweredList = MemberIdList.filter(
-    (id) => !userIdAlreadyAnsweredList.includes(id)
-  ); //未回答の人（固定のみ）
-
-  let maru = userIdEachReactionList[0];
-  let batu = userIdEachReactionList[1];
-
-  //判定用
-  let fieldNum = maru.length;
-  let GkNum = 0;
-  if (maru.includes(keeperId)) {
-    fieldNum -= 1;
-    GkNum = 1;
-  }
-
-  let text1 = "⭕:";
-  let text2 = "❓:";
-  let text3 = "❌:";
-
-  //まるの人
-  for (let id of maru) {
-    for (let mem of Members) {
-      if (id == mem.id) {
-        text1 += mem.name + " ";
-        break;
-      }
-    }
-  }
-
-  //×の人
-  for (let id of batu) {
-    for (let mem of Members) {
-      if (id == mem.id) {
-        text3 += mem.name + " ";
-        break;
-      }
-    }
-  }
-
-  //未回答の人
-  for (let id of userIdNotAnsweredList) {
-    for (let mem of Members) {
-      if (id == mem.id) {
-        text2 += mem.name + " ";
-        break;
-      }
-    }
-  }
-
-  text += `:[${Hour}:${Min}:${Sec}時点の人数]\n**フィールド${fieldNum}人・GK${GkNum}人\n未回答${userIdNotAnsweredList.length}人**`;
-  text += "```" + text1 + "```";
-  text += "```" + text2 + "```";
-  text += "```" + text3 + "```";
-
-  return text;
-}
-
-async function assignRole(member, role) {
-  try {
-    if (member && role) {
-      await member.roles.add(role);
-    } else {
-      console.log("指定されたユーザーまたはロールが見つかりませんでした。");
-    }
-  } catch (error) {
-    console.error("ロールを付与する際にエラーが発生しました:", error);
-  }
-}
-
-async function removeRole(member, role) {
-  try {
-    if (member && role) {
-      await member.roles.remove(role);
-    } else {
-      console.log("指定されたユーザーまたはロールが見つかりませんでした。");
-    }
-  } catch (error) {
-    console.error("ロールを削除する際にエラーが発生しました:", error);
-  }
-}
-
-// 指定したチャンネルに実施判定テキスト送信
-async function SendTrackerText(VoteCh, SendCh) {
-  let arr = await GetAllTodayVoteReaction();
-  let text = GetTrackerText(arr);
-  client.channels.cache.get(SendCh).send(text);
-}
-
-// テキスト更新
-async function UpdateTrackerText(VoteCh) {
-  let flag = false;
-  //メッセコレクションの取得
-  let MsgCollection = await GetTargetMessage(VoteCh, 10);
-  //投票メッセを探す
-  for (const m of MsgCollection.values()) {
-    if (
-      m.author.id == botID &&
-      m.content == "" &&
-      m.createdAt.getDay() == new Date().getDay()
-    ) {
-      flag = true;
-      break;
-    }
-  }
-  //見つかった
-  if (flag) {
-    let arr = await GetAllTodayVoteReaction();
-    //ジャッジメッセージの走査
-    let msg2;
-    let flag2 = false;
-    for (const m of MsgCollection.values()) {
-      if (
-        m.author.id == botID &&
-        m.content.match("Tracker") &&
-        m.createdAt.getDay() == new Date().getDay()
-      ) {
-        msg2 = m;
-        flag2 = true;
-        break;
-      }
-    }
-    //見つかった
-    if (flag2) {
-      let text = GetTrackerText(arr);
-      msg2.edit(text).catch(console.error);
-    } else {
-      console.log("cannot find tracker message");
-    }
-  } else {
-    console.log("cannot find vote message");
-  }
 }
 
 client.login(process.env.DISCORD_BOT_TOKEN);
