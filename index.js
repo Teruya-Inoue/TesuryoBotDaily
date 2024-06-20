@@ -25,8 +25,8 @@ const MemberNameList = []; //アクティブメンバーの名前
 const SMemberNameList = []; //サポメンの名前
 
 const guildId = "961573520855425074";
-const roleMaru = "1252875531612065823";
-const roleNotAns = "1252875758406336552";
+const roleMaruId = "1252875531612065823";
+const roleNotAnsId = "1252875758406336552";
 
 let keeperId = "";
 
@@ -313,6 +313,14 @@ cron.schedule(config.UpdateTime, async () => {
           status: "online",
         });
 
+        const guild = await client.guilds.fetch(guildId);
+        const roleMaru = guild.roles.cache.get(roleMaruId);
+        const roleNotAns = guild.roles.cache.get(roleNotAnsId);
+
+        addMaruRemoveNotAns(guild, maru, roleMaru, roleNotAns);
+        removeMaruRemoveNotAns(guild, batu, roleMaru, roleNotAns);
+        removeMaruAddNotAns(guild, notAns, roleMaru, roleNotAns);
+
         const booleanJudge = await booleanJudgePromise;
         const booleanMatchDay = await booleanMatchDayPromise;
 
@@ -320,15 +328,15 @@ cron.schedule(config.UpdateTime, async () => {
           if (judgeNum < config.minPlayer) {
             let judgeText = "";
             if (notAns.length == 0) {
-              judgeText += `<@&${roleMaru}> 全員回答完了\n`;
+              judgeText += `<@&${roleMaruId}> 全員回答完了\n`;
             } else {
-              judgeText += `<@&${roleMaru}> <@&${roleNotAns}> 全員回答完了してませんが\n`;
+              judgeText += `<@&${roleMaruId}> <@&${roleNotAnsId}> 全員回答完了してませんが\n`;
             }
             judgeText += `フィールド${config.minPlayer}人に満たないので今日はfin`;
             console.log("fin送信");
             client.channels.cache.get(myChannels.ProClubVoteCh).send(judgeText);
           } else if (notAns.length == 0) {
-            const judgeText = `<@&${roleMaru}> 全員回答完了\nフィールド${fieldNum}人・GK${GkNum}人集まったので活動アリです`;
+            const judgeText = `<@&${roleMaruId}> 全員回答完了\nフィールド${fieldNum}人・GK${GkNum}人集まったので活動アリです`;
             client.channels.cache.get(myChannels.ProClubVoteCh).send(judgeText);
             console.log("活動アリ送信");
           } else {
@@ -348,7 +356,7 @@ cron.schedule(config.reminderTime, async () => {
   //オフじゃないなら
   const booleanMatchDay = await isMatchDay();
   if (!isOff() && !booleanMatchDay) {
-    let text = `<@&${roleNotAns}> 回答よろしくお願いします`;
+    let text = `<@&${roleNotAnsId}> 回答よろしくお願いします`;
     client.channels.cache.get(myChannels.ProClubVoteCh).send(text);
   }
 });
@@ -648,6 +656,54 @@ async function GetWeekVoteReaction(
     }
   }
   return Promise.all(weekVoteArray);
+}
+
+async function addMaruRemoveNotAns(guild, maru, roleMaru, roleNotAns) {
+  for (const id of maru) {
+    guild.members.fetch(id).then(async (member) => {
+      await member.fetch(true);
+      if (!member.roles.cache.has(roleMaruId)) {
+        await member.roles.add(roleMaru);
+        console.log(member.user.tag, "に出欠〇を付与しました");
+      }
+      if (member.roles.cache.has(roleNotAnsId)) {
+        await member.roles.remove(roleNotAns);
+        console.log(member.user.tag, "未回答を削除しました");
+      }
+    });
+  }
+}
+
+async function removeMaruRemoveNotAns(guild, batu, roleMaru, roleNotAns) {
+  for (const id of batu) {
+    guild.members.fetch(id).then(async (member) => {
+      await member.fetch(true);
+      if (member.roles.cache.has(roleMaruId)) {
+        await member.roles.remove(roleMaru);
+        console.log(member.user.tag, "出欠〇を削除しました");
+      }
+      if (member.roles.cache.has(roleNotAnsId)) {
+        await member.roles.remove(roleNotAns);
+        console.log(member.user.tag, "未回答を削除しました");
+      }
+    });
+  }
+}
+
+async function removeMaruAddNotAns(guild, notAns, roleMaru, roleNotAns) {
+  for (const id of notAns) {
+    guild.members.fetch(id).then(async (member) => {
+      await member.fetch(true);
+      if (member.roles.cache.has(roleMaruId)) {
+        await member.roles.remove(roleMaru);
+        console.log(member.user.tag, "出欠〇を削除しました");
+      }
+      if (!member.roles.cache.has(roleNotAnsId)) {
+        await member.roles.add(roleNotAns);
+        console.log(member.user.tag, "未回答を付与しました");
+      }
+    });
+  }
 }
 
 client.login(process.env.DISCORD_BOT_TOKEN);
