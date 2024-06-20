@@ -24,6 +24,10 @@ const SMemberIdList = []; //サポメンID
 const MemberNameList = []; //アクティブメンバーの名前
 const SMemberNameList = []; //サポメンの名前
 
+const guildId = "961573520855425074";
+const roleMaru = "1252875531612065823";
+const roleNotAns = "1252875758406336552";
+
 let keeperId = "";
 
 for (let member of Members) {
@@ -43,6 +47,8 @@ for (let member of Members) {
 const myChannels = {
   ProClubVoteCh: "972816498215227402", //プロクラブ出欠確認
   WeekVoteCh: "1138445755619758150",
+  General: "1004623298107281409",
+  ProClubInfo: "1004308042009038848",
 };
 
 // Create a new client instance
@@ -186,76 +192,154 @@ cron.schedule(config.TrackerTime, async () => {
 
 //cron:プロクラブ出欠追跡テキスト更新
 cron.schedule(config.UpdateTime, async () => {
-  if (!isOff()) UpdateTrackerText(myChannels.ProClubVoteCh);
-});
+  if (!isOff()) {
+    //リアクション取得
+    const reactionsPromise = GetAllTodayVoteReaction();
+    const booleanJudgePromise = BooleanJudgeMessageExist();
+    const booleanMatchDayPromise = isMatchDay();
 
-//cron:全員回答完了か判定
-//全員回答完了したならばジャッジメッセージ送信
-cron.schedule(config.confirmTime, async () => {
-  let flag = await BooleanJudgeMessageExist(5); //全員回答したか
-  let booleanMatchDay = await isMatchDay();
+    //出欠チャンネルからメッセージ取得
+    const msg = await client.channels.cache
+      .get(myChannels.ProClubVoteCh)
+      .messages.fetch({ limit: 5 });
 
-  //オフじゃない かつ　ジャッジメッセージがない かつ試合日でないなら
-  if (!isOff() && !flag && !booleanMatchDay) {
-    //リアクションした人取得
-    let userIdEachReactionList = await GetAllTodayVoteReaction();
+    //Trackerメッセージを探す
+    for (const m of msg.values()) {
+      if (
+        m.content.match("Tracker") &&
+        m.createdAt.getDay() == new Date().getDay()
+      ) {
+        const trackerMsg = m;
 
-    //各リアクションのメンバー
-    let maru = userIdEachReactionList[0]; //⭕
-    let batu = userIdEachReactionList[1]; //❌
+        //時間
+        const now = new Date();
+        const Hour = now.getHours();
+        const Min = now.getMinutes();
+        const Sec = now.getSeconds();
+        let trackerText = "Tracker";
 
-    //答えた人、答えてない人
-    let Ans = [...userIdEachReactionList[0], ...userIdEachReactionList[1]];
-    let notAns = MemberIdList.filter((id) => !Ans.includes(id));
+        const reactions = await reactionsPromise;
+        //答えた人の集合を作る
+        let all = [];
+        for (const r of reactions) {
+          all = all.concat(r);
+        }
+        const set = new Set(all);
 
-    //判定用
-    let keeperNum; //キーパーの数
-    let fieldNum = maru.length; //フィールドの数
-    let judgeNum; //活動かfinか判定用の変数
+        const answered = Array.from(set);
+        const notAns = MemberIdList.filter((id) => !answered.includes(id));
+        const maru = reactions[0];
+        const batu = reactions[1];
 
-    //キーパーが⭕のとき
-    if (maru.includes(keeperId)) {
-      keeperNum = 1;
-      fieldNum -= 1;
-      judgeNum = fieldNum + notAns.length;
-      //キーパーが❌のとき
-    } else if (batu.includes(keeperId)) {
-      keeperNum = 0;
-      judgeNum = fieldNum + notAns.length;
-      //キーパーが未回答のとき
-    } else if (notAns.includes(keeperId)) {
-      keeperNum = -1;
-      judgeNum = fieldNum + notAns.length - 1;
-    }
+        let fieldNum;
+        let GkNum = 0;
+        if (maru.includes(keeperId)) {
+          fieldNum -= 1;
+          GkNum = 1;
+        }
 
-    //ゲスト管理者
-    let text = "";
+        let text1 = "⭕:";
+        let text2 = "❓:";
+        let text3 = "❌:";
 
-    if (judgeNum < config.minPlayer) {
-      //fin
-      //全員回答済み
-      if (notAns.length == 0) {
-        for (let id of maru) text += `<@${id}> `;
-        text += "\n@⭕の人たち\n全員回答完了 ";
-        //未回答者アリ
-      } else {
-        for (let id of [...maru, ...notAns]) text += `<@${id}> `;
-        text += "\n@⭕と未回答の人たち\n全員回答完了してませんが";
+        //まるの人
+        for (let id of maru) {
+          for (let mem of Members) {
+            if (id == mem.id) {
+              text1 += mem.name + " ";
+              break;
+            }
+          }
+        }
+
+        //×の人
+        for (let id of batu) {
+          for (let mem of Members) {
+            if (id == mem.id) {
+              text3 += mem.name + " ";
+              break;
+            }
+          }
+        }
+
+        //未回答の人
+        for (let id of notAns) {
+          for (let mem of Members) {
+            if (id == mem.id) {
+              text2 += mem.name + " ";
+              break;
+            }
+          }
+        }
+
+        //遅れの人(長さ3のときのみ)
+        if (reactions.length == 3) {
+          //遅れで追加
+          for (let id of reactions[2]) {
+            for (let mem of Members) {
+              if (id == mem.id) {
+                text1 += mem.name + "(遅) ";
+                break;
+              }
+            }
+          }
+          fieldNum = maru.length + reactions[2].includes(keeperId);
+          if (maru.includes(keeperId) || reactions[2].includes(keeperId)) {
+            fieldNum -= 1;
+            GkNum = 1;
+          }
+        } else {
+          fieldNum = maru.length;
+          if (maru.includes(keeperId)) {
+            fieldNum -= 1;
+            GkNum = 1;
+          }
+        }
+        const judgeNum = fieldNum + notAns.length;
+
+        trackerText += `:[${Hour}:${Min}:${Sec}時点の人数]\n**フィールド${fieldNum}人・GK${GkNum}人\n未回答${notAns.length}人**`;
+        trackerText += "```" + text1 + "```";
+        trackerText += "```" + text2 + "```";
+        trackerText += "```" + text3 + "```";
+        trackerMsg.edit(trackerText).catch(console.error);
+
+        //botのステータス設定
+        client.user.setPresence({
+          activities: [
+            {
+              name: `⭕${maru.length}❓${notAns.length}❌${batu.length}出欠`,
+              type: 3,
+            },
+          ],
+          status: "online",
+        });
+
+        const booleanJudge = await booleanJudgePromise;
+        const booleanMatchDay = await booleanMatchDayPromise;
+
+        if (!booleanJudge && !booleanMatchDay) {
+          if (judgeNum < config.minPlayer) {
+            let judgeText = "";
+            if (notAns.length == 0) {
+              judgeText += `<@&${roleMaru}> 全員回答完了\n`;
+            } else {
+              judgeText += `<@&${roleMaru}> <@&${roleNotAns}> 全員回答完了してませんが\n`;
+            }
+            judgeText += `フィールド${config.minPlayer}人に満たないので今日はfin`;
+            console.log("fin送信");
+            client.channels.cache.get(myChannels.ProClubVoteCh).send(judgeText);
+          } else if (notAns.length == 0) {
+            const judgeText = `<@&${roleMaru}> 全員回答完了\nフィールド${fieldNum}人・GK${GkNum}人集まったので活動アリです`;
+            client.channels.cache.get(myChannels.ProClubVoteCh).send(judgeText);
+            console.log("活動アリ送信");
+          } else {
+            //console.log("まだ判定できない");
+          }
+        } else {
+          console.log("すでに判定済み");
+        }
+        break;
       }
-      text += `フィールド${config.minPlayer}人に満たないので今日はfin`;
-      client.channels.cache.get(myChannels.ProClubVoteCh).send(text);
-    } else if (notAns.length == 0) {
-      //全員回答完了の場合
-
-      for (let id of maru) text += `<@${id}> `;
-      text += "\n\n@⭕の人たち\n全員回答完了 ";
-
-      if (fieldNum >= 10) {
-        text += "フィールド10人集まりました!\n**22:30から活動!**\n";
-      } else if (fieldNum < 10) {
-        text += `フィールド${fieldNum}人集まりました!\n**22:30から活動!**\n`;
-      }
-      client.channels.cache.get(myChannels.ProClubVoteCh).send(text);
     }
   }
 });
@@ -277,8 +361,12 @@ cron.schedule(config.reminderTime, async () => {
       let notAns = MemberIdList.filter((id) => !ans.includes(id));
 
       if (notAns.length > 0) {
+        /*
         let text = "まだの人回答宜しくお願いします！\n";
         for (let id of notAns) text += `<@${id}> `;
+        client.channels.cache.get(myChannels.ProClubVoteCh).send(text);
+        */
+        let text = `<@&${roleNotAns}> 回答よろしくお願いします`;
         client.channels.cache.get(myChannels.ProClubVoteCh).send(text);
       }
     }
@@ -329,21 +417,24 @@ cron.schedule(config.JudgeTime, async () => {
     //8人以上いる
     if (fieldNum >= config.minPlayer) {
       for (let id of maru) text += `<@${id}> `;
-      text += "@⭕の人たち";
+      //text += "@⭕の人たち";
+      text += `<@&${roleMaru}> `;
       text += `全員回答完了していませんが、フィールド${fieldNum}人集まってるので活動ありです！\n`;
       text += "**22:30から活動!**\n";
       client.channels.cache.get(myChannels.ProClubVoteCh).send(text);
 
       let text2 = "";
       for (let id of notAns) text2 += `<@${id}> `;
-      text2 =
-        "@未回答の人たち\n20:30まで待ちます\nそれ以降はゲス募出すので早い方優先します。";
+      text2 += `<@&${roleNotAns}>`;
+      text2 +=
+        "\n20:30まで待ちます\nそれ以降はゲス募出すので早い方優先します。";
       client.channels.cache.get(myChannels.ProClubVoteCh).send(text2);
 
       //8人いない
     } else {
       text += `全員回答完了していませんが、`;
-      for (let id of notAns) text += `<@${id}> `;
+      //for (let id of notAns) text += `<@${id}> `;
+      text += `<@&${roleNotAns}>`;
       text += `の中から${
         config.minPlayer - fieldNum
       }人⭕なら活動アリです！\n回答したら何か連絡ください。\n`;
@@ -451,7 +542,7 @@ async function GetTargetMessage(channel, n) {
 }
 
 //ジャッジメッセージがあるか
-async function BooleanJudgeMessageExist(messageNum) {
+async function BooleanJudgeMessageExist(messageNum = 5) {
   let nowday = new Date().getDay();
   let MsgCollection = await GetTargetMessage(
     myChannels.ProClubVoteCh,
@@ -699,21 +790,36 @@ function GetTrackerText(userIdEachReactionList) {
     }
   }
 
-  client.user.setPresence({
-    activities: [
-      {
-        name: `⭕${maru.length}❓${userIdNotAnsweredList.length}❌${batu.length}出欠`,
-        type: 3,
-      },
-    ],
-    status: "online",
-  });
   text += `:[${Hour}:${Min}:${Sec}時点の人数]\n**フィールド${fieldNum}人・GK${GkNum}人\n未回答${userIdNotAnsweredList.length}人**`;
   text += "```" + text1 + "```";
   text += "```" + text2 + "```";
   text += "```" + text3 + "```";
 
   return text;
+}
+
+async function assignRole(member, role) {
+  try {
+    if (member && role) {
+      await member.roles.add(role);
+    } else {
+      console.log("指定されたユーザーまたはロールが見つかりませんでした。");
+    }
+  } catch (error) {
+    console.error("ロールを付与する際にエラーが発生しました:", error);
+  }
+}
+
+async function removeRole(member, role) {
+  try {
+    if (member && role) {
+      await member.roles.remove(role);
+    } else {
+      console.log("指定されたユーザーまたはロールが見つかりませんでした。");
+    }
+  } catch (error) {
+    console.error("ロールを削除する際にエラーが発生しました:", error);
+  }
 }
 
 // 指定したチャンネルに実施判定テキスト送信
