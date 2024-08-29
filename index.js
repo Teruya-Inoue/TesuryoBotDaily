@@ -336,14 +336,14 @@ cron.schedule(config.UpdateTime, async () => {
             console.log("fin送信");
             client.channels.cache.get(myChannels.ProClubVoteCh).send(judgeText);
           } else if (notAns.length == 0) {
-            const judgeText = `<@&${roleMaruId}> 全員回答完了\nフィールド${fieldNum}人・GK${GkNum}人集まったので活動アリです`;
+            const judgeText = `<@&${roleMaruId}> 全員回答完了\nフィールド8人以上・GK${GkNum}人集まったので活動あります。\n <#${myChannels.ProClubInfo}> で、活動メンバーと配置が出た後に出欠を変える場合は連絡ください。`;
             client.channels.cache.get(myChannels.ProClubVoteCh).send(judgeText);
             console.log("活動アリ送信");
           } else {
             //console.log("まだ判定できない");
           }
         } else {
-          console.log("すでに判定済み");
+          //console.log("すでに判定済み");
         }
         break;
       }
@@ -370,7 +370,7 @@ cron.schedule(config.WeekVoteResetTime, async () => {
 async function resetWeekVote() {
   let MsgCollection = await client.channels.cache
     .get(myChannels.WeekVoteCh)
-    .messages.fetch({ limit: 5 });
+    .messages.fetch({ limit: 7 - config.offDay.length });
 
   const currentDate = new Date();
   // 1週間後の日付を計算
