@@ -1,6 +1,6 @@
 {
   "minPlayer": 8,
-  "offDay": [0,3,6],
+  "offDay": [0,6],
   "offDate": [
     { "start": "-01-01T00:00:00+0900", "end": "-01-03T23:59:59+0900" },
     { "start": "-12-28T00:00:00+0900", "end": "-12-31T23:59:59+0900" }
@@ -8,8 +8,8 @@
 
   "emojisForVoteReaction": ["⭕", "❌", "🚫"],
 
-  "VoteTime": "*/10 58 5 * * *",
-  "TrackerTime": "*/20 59 5 * * *",
+  "VoteTime": "*/10 * 5-21 * * *",
+  "TrackerTime": "*/20 * 5-21 * * *",
   "UpdateTime": "*/10 * 6-21 * * *",
   "confirmTime": "*/15 * 6-21 * * *",
   "reminderTime": "0 18 * * *",

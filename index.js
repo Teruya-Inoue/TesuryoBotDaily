@@ -10,38 +10,17 @@ const {
 const http = require("http");
 const cron = require("node-cron");
 const config = require("./config.json");
-const memberJson = require("./db/member.json");
+const Members = require("./db/members.json")
 let leagueFixtureJson = require("./db/leagueFixture.json");
 
-//わかりやすく
-const Members = memberJson.members;
 //botのdiscordユーザーID
 const botID = "991590117036806234";
-
-//メンバーリスト
-const MemberIdList = []; //アクティブメンバーID
-const SMemberIdList = []; //サポメンID
-const MemberNameList = []; //アクティブメンバーの名前
-const SMemberNameList = []; //サポメンの名前
 
 const guildId = "961573520855425074";
 const roleMaruId = "1252875531612065823";
 const roleNotAnsId = "1252875758406336552";
 
 let keeperId = "";
-
-for (let member of Members) {
-  //アクティブメンバー
-  if (member.active) {
-    MemberIdList.push(member.id);
-    MemberNameList.push(member.name);
-    if (member.keeper) keeperId = member.id;
-    //サポートメンバー
-  } else {
-    SMemberIdList.push(member.id);
-    SMemberNameList.push(member.name);
-  }
-}
 
 //チャンネル
 const myChannels = {
@@ -104,7 +83,7 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
   if (reaction.message.author.id != botID) return;
 
   //手数料botへの固定・サポメン以外のリアクションは消す
-  if (!MemberIdList.includes(user.id) && !SMemberIdList.includes(user.id)) {
+  if (Members[user.id]==undefined) {
     reaction.users.remove(user.id);
   }
 
@@ -226,7 +205,8 @@ cron.schedule(config.UpdateTime, async () => {
         const set = new Set(all);
 
         const answered = Array.from(set);
-        const notAns = MemberIdList.filter((id) => !answered.includes(id));
+        const notAns = Object.keys(Members).filter((id) => !answered.includes(id));
+        const notAnsNotify = notAns.filter(id => Members[id].notification == true);
         const maru = reactions[0];
         const batu = reactions[1];
 
@@ -241,33 +221,29 @@ cron.schedule(config.UpdateTime, async () => {
         let text2 = "❓:";
         let text3 = "❌:";
 
-        //まるの人
         for (let id of maru) {
-          for (let mem of Members) {
-            if (id == mem.id) {
-              text1 += mem.name + " ";
-              break;
-            }
+          if(Members[id].type == "メンバー"){
+            text1 += Members[id].name + " ";
+          }else{
+            text1 += Members[id].name + "* ";
           }
         }
 
         //×の人
         for (let id of batu) {
-          for (let mem of Members) {
-            if (id == mem.id) {
-              text3 += mem.name + " ";
-              break;
-            }
+          if(Members[id].type == "メンバー"){
+            text3 += Members[id].name + " ";
+          }else{
+            text3 += Members[id].name + "* ";
           }
         }
 
         //未回答の人
         for (let id of notAns) {
-          for (let mem of Members) {
-            if (id == mem.id) {
-              text2 += mem.name + " ";
-              break;
-            }
+          if(Members[id].type == "メンバー"){
+            text2 += Members[id].name + " ";
+          }else{
+            text2 += Members[id].name + "* ";
           }
         }
 
@@ -275,11 +251,10 @@ cron.schedule(config.UpdateTime, async () => {
         if (reactions.length == 3) {
           //遅れで追加
           for (let id of reactions[2]) {
-            for (let mem of Members) {
-              if (id == mem.id) {
-                text1 += mem.name + "(遅) ";
-                break;
-              }
+            if(Members[id].type == "メンバー"){
+              text1 += Members[id].name + "(遅) ";
+            }else{
+              text1 += Members[id].name + "(遅)* ";
             }
           }
           fieldNum = maru.length + reactions[2].includes(keeperId);
@@ -294,7 +269,7 @@ cron.schedule(config.UpdateTime, async () => {
             GkNum = 1;
           }
         }
-        const judgeNum = fieldNum + notAns.length;
+        const judgeNum = fieldNum + notAnsNotify.length;
 
         trackerText += `:[${Hour}:${Min}:${Sec}時点の人数]\n**フィールド${fieldNum}人・GK${GkNum}人\n未回答${notAns.length}人**`;
         trackerText += "```" + text1 + "```";
@@ -319,31 +294,33 @@ cron.schedule(config.UpdateTime, async () => {
 
         addMaruRemoveNotAns(guild, maru, roleMaru, roleNotAns);
         removeMaruRemoveNotAns(guild, batu, roleMaru, roleNotAns);
-        removeMaruAddNotAns(guild, notAns, roleMaru, roleNotAns);
+        removeMaruAddNotAns(guild, notAnsNotify, roleMaru, roleNotAns);
 
-        const booleanJudge = await booleanJudgePromise;
-        const booleanMatchDay = await booleanMatchDayPromise;
+        if((Hour>=18 || (Hour==17&&Min>=59))&&(Hour<20 || (Hour ==20 && Min <30))){
+          const booleanJudge = await booleanJudgePromise;
+          const booleanMatchDay = await booleanMatchDayPromise;
 
-        if (!booleanJudge && !booleanMatchDay) {
-          if (judgeNum < config.minPlayer) {
-            let judgeText = "";
-            if (notAns.length == 0) {
-              judgeText += `<@&${roleMaruId}> 全員回答完了\n`;
+          if (!booleanJudge && !booleanMatchDay) {
+            if (judgeNum < config.minPlayer) {
+              let judgeText = "";
+              if (notAnsNotify.length == 0) {
+                judgeText += `<@&${roleMaruId}> 全員回答完了\n`;
+              } else {
+                judgeText += `<@&${roleMaruId}> <@&${roleNotAnsId}> 全員回答完了してませんが\n`;
+              }
+              judgeText += `フィールド${config.minPlayer}人に満たないので今日はfin`;
+              console.log("fin送信");
+              client.channels.cache.get(myChannels.ProClubVoteCh).send(judgeText);
+            } else if (notAnsNotify.length == 0) {
+              const judgeText = `<@&${roleMaruId}> 全員回答完了\nフィールド${config.minPlayer}人以上・GK${GkNum}人集まったので活動あります。(${Hour}:${Min}時点)`;
+              client.channels.cache.get(myChannels.ProClubVoteCh).send(judgeText);
+              console.log("活動アリ送信");
             } else {
-              judgeText += `<@&${roleMaruId}> <@&${roleNotAnsId}> 全員回答完了してませんが\n`;
+              //console.log("まだ判定できない");
             }
-            judgeText += `フィールド${config.minPlayer}人に満たないので今日はfin`;
-            console.log("fin送信");
-            client.channels.cache.get(myChannels.ProClubVoteCh).send(judgeText);
-          } else if (notAns.length == 0) {
-            const judgeText = `<@&${roleMaruId}> 全員回答完了\nフィールド8人以上・GK${GkNum}人集まったので活動あります。\n <#${myChannels.ProClubInfo}> で、活動メンバーと配置が出た後に出欠を変える場合は連絡ください。`;
-            client.channels.cache.get(myChannels.ProClubVoteCh).send(judgeText);
-            console.log("活動アリ送信");
           } else {
-            //console.log("まだ判定できない");
+            //console.log("すでに判定済み");
           }
-        } else {
-          //console.log("すでに判定済み");
         }
         break;
       }
@@ -365,6 +342,11 @@ cron.schedule(config.reminderTime, async () => {
 cron.schedule(config.WeekVoteResetTime, async () => {
   resetWeekVote();
 });
+
+//ロールリセット
+cron.schedule(config.VoteTime,async()=>{
+  removeMaruRemoveNotAns(guild, Object.keys(Members), roleMaru, roleNotAns);
+})
 
 //以下、便利関数
 async function resetWeekVote() {
